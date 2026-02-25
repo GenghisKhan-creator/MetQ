@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --color-medical-primary: #1a365d;
+  --color-medical-secondary: #2b6cb0;
+  --color-medical-accent: #4299e1;
+  --color-medical-bg: #f7fafc;
+  --color-medical-soft: #ebf8ff;
+}
+
+:root {
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: #1a202c;
+  background-color: var(--color-medical-bg);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.premium-shadow {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1), 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Accessibility Modes */
+.text-lg-mode {
+  font-size: 1.25rem;
+}
+
+.text-lg-mode h1 {
+  font-size: 6rem !important;
+}
+
+.high-contrast {
+  background-color: #000 !important;
+  color: #fff !important;
+}
+
+.high-contrast .glass-morphism {
+  background: #000 !important;
+  border-color: #fff !important;
+}
+
+.high-contrast p,
+.high-contrast span {
+  color: #fff !important;
+}
+
+.high-contrast button {
+  border: 4px solid #fff !important;
+}
+
+.high-contrast .bg-white,
+.high-contrast .bg-gray-50 {
+  background-color: #111 !important;
+  border: 2px solid #fff !important;
+}
