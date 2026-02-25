@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# User uploads (avatars etc.) — keep folder structure but not actual files
+server/uploads/avatars/*
+!server/uploads/avatars/.gitkeep

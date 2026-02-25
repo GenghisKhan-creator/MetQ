@@ -12,7 +12,6 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
-            // In a real app, verify token with backend
             const storedUser = JSON.parse(localStorage.getItem('user'));
             setUser(storedUser);
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -49,15 +48,22 @@ export const AuthProvider = ({ children }) => {
 
     const changePassword = async (newPassword) => {
         const res = await axios.post('http://localhost:5000/api/auth/change-password', { newPassword });
-        // Update user state locally
         const updatedUser = { ...user, requires_password_change: false };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         setUser(updatedUser);
         return res.data;
     };
 
+    // Update user in both state and localStorage (used after profile/avatar updates)
+    const updateUser = (updates) => {
+        const updatedUser = { ...user, ...updates };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+    };
+
     const value = {
         user,
+        setUser: updateUser,   // exposed so components can update user state after edits
         login,
         register,
         changePassword,

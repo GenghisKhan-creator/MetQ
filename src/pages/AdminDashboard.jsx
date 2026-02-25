@@ -16,6 +16,8 @@ import { Activity, Users, Clock, AlertTriangle, ShieldCheck, TrendingUp, UserPlu
 import { gsap } from 'gsap';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { socket, connectSocket, disconnectSocket, joinHospitalRoom } from '../services/socket';
 
 ChartJS.register(
     CategoryScale,
@@ -31,6 +33,7 @@ ChartJS.register(
 
 const AdminDashboard = () => {
     const { user: currentUser } = useAuth();
+    const navigate = useNavigate();
     const [showStaffModal, setShowStaffModal] = useState(false);
     const [staffForm, setStaffForm] = useState({
         full_name: '',
@@ -77,7 +80,8 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchStats();
-        const interval = setInterval(fetchStats, 30000); // Refresh every 30s
+        // Fallback polling every 60s (socket handles real-time)
+        const interval = setInterval(fetchStats, 60000);
 
         const tl = gsap.timeline();
         gsap.set(['.stat-card', '.dash-card'], { opacity: 0, y: 30 });
@@ -97,7 +101,19 @@ const AdminDashboard = () => {
                 ease: "power3.out"
             }, "-=0.4");
 
-        return () => clearInterval(interval);
+        // Connect to real-time hospital room
+        if (currentUser?.hospital_id) {
+            connectSocket();
+            socket.on('connect', () => joinHospitalRoom(currentUser.hospital_id));
+            socket.on('queue_updated', () => fetchStats());
+        }
+
+        return () => {
+            clearInterval(interval);
+            socket.off('connect');
+            socket.off('queue_updated');
+            disconnectSocket();
+        };
     }, [currentUser]);
 
     const handleAddStaff = async (e) => {
@@ -154,6 +170,12 @@ const AdminDashboard = () => {
                         <p className="text-gray-500 text-lg">Real-time operational analytics for {currentUser?.hospital_name || 'your hospital'}.</p>
                     </div>
                     <div className="flex gap-4">
+                        <button
+                            onClick={() => navigate('/admin/users')}
+                            className="px-6 py-3 bg-white border border-gray-100 text-gray-700 rounded-2xl font-bold flex items-center gap-2 hover:border-medical-primary hover:text-medical-primary transition-all text-sm premium-shadow"
+                        >
+                            <Users size={18} /> Manage Users
+                        </button>
                         <button
                             onClick={() => setShowStaffModal(true)}
                             className="px-6 py-3 bg-medical-primary text-white rounded-2xl font-bold flex items-center gap-2 hover:scale-105 transition-all text-sm premium-shadow"

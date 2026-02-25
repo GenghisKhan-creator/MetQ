@@ -20,13 +20,19 @@ exports.getLiveQueue = async (req, res) => {
         }
 
         const entries = await db.query(
-            'SELECT qe.*, u.full_name as patient_name FROM queue_entries qe JOIN appointments a ON qe.appointment_id = a.id JOIN users u ON a.patient_id = u.id WHERE qe.queue_id = $1 AND qe.status = $2 ORDER BY qe.position ASC',
-            [queueRes.rows[0].id, 'waiting']
+            `SELECT qe.*, u.full_name as patient_name, u.id as patient_user_id
+             FROM queue_entries qe
+             JOIN appointments a ON qe.appointment_id = a.id
+             JOIN users u ON a.patient_id = u.id
+             WHERE qe.queue_id = $1 AND qe.status IN ('waiting', 'serving')
+             ORDER BY qe.position ASC`,
+            [queueRes.rows[0].id]
         );
 
         res.json({
+            queueId: queueRes.rows[0].id,
             currentNumber: queueRes.rows[0].current_serving_number,
-            waitingCount: entries.rows.length,
+            waitingCount: entries.rows.filter(e => e.status === 'waiting').length,
             entries: entries.rows
         });
     } catch (err) {
@@ -35,29 +41,56 @@ exports.getLiveQueue = async (req, res) => {
 };
 
 exports.updateQueueStatus = async (req, res) => {
-    // Only admin or doctor can update
     const { queue_entry_id, status } = req.body;
+    const io = req.app.get('io');
 
     try {
         const updated = await db.query(
             'UPDATE queue_entries SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
             [status, queue_entry_id]
         );
+        const entry = updated.rows[0];
 
         if (status === 'serving') {
             await db.query(
                 'UPDATE queues SET current_serving_number = current_serving_number + 1 WHERE id = $1',
-                [updated.rows[0].queue_id]
+                [entry.queue_id]
             );
         }
 
-        res.json(updated.rows[0]);
+        // Get updated queue data to broadcast
+        const queueData = await buildQueuePayload(entry.queue_id);
+
+        // Get doctor_id from the queue
+        const queueInfo = await db.query('SELECT doctor_id FROM queues WHERE id = $1', [entry.queue_id]);
+        if (queueInfo.rows.length > 0) {
+            const doctor_id = queueInfo.rows[0].doctor_id;
+            // Emit to all clients in this doctor's queue room
+            io.to(`queue_${doctor_id}`).emit('queue_updated', queueData);
+        }
+
+        // Also notify the specific patient if it's their turn
+        if (status === 'serving') {
+            const aptRes = await db.query(
+                'SELECT a.patient_id FROM appointments a JOIN queue_entries qe ON a.id = qe.appointment_id WHERE qe.id = $1',
+                [queue_entry_id]
+            );
+            if (aptRes.rows.length > 0) {
+                io.emit(`patient_turn_${aptRes.rows[0].patient_id}`, {
+                    message: "It's your turn! Please proceed to the consultation room."
+                });
+            }
+        }
+
+        res.json(entry);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
+
 exports.manualCheckIn = async (req, res) => {
     const { appointment_id } = req.body;
+    const io = req.app.get('io');
 
     try {
         // 1. Get appointment details
@@ -105,8 +138,35 @@ exports.manualCheckIn = async (req, res) => {
             [queueId]
         );
 
+        // 6. Emit real-time update
+        const queueData = await buildQueuePayload(queueId);
+        io.to(`queue_${app.doctor_id}`).emit('queue_updated', queueData);
+
+        // Also emit to hospital admin room
+        io.to(`hospital_${app.hospital_id}`).emit('queue_updated', queueData);
+
         res.json({ message: 'Checked in successfully' });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
+
+// Helper: build queue snapshot for broadcasting
+async function buildQueuePayload(queueId) {
+    const entries = await db.query(
+        `SELECT qe.*, u.full_name as patient_name
+         FROM queue_entries qe
+         JOIN appointments a ON qe.appointment_id = a.id
+         JOIN users u ON a.patient_id = u.id
+         WHERE qe.queue_id = $1 AND qe.status IN ('waiting', 'serving')
+         ORDER BY qe.position ASC`,
+        [queueId]
+    );
+    const queueRow = await db.query('SELECT * FROM queues WHERE id = $1', [queueId]);
+    return {
+        queueId,
+        currentNumber: queueRow.rows[0]?.current_serving_number || 0,
+        waitingCount: entries.rows.filter(e => e.status === 'waiting').length,
+        entries: entries.rows
+    };
+}

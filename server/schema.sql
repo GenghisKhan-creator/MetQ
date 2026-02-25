@@ -120,6 +120,7 @@ CREATE TABLE medical_records (
     symptoms TEXT,
     prescriptions JSONB, -- List of medications
     lab_results JSONB,
+    vitals JSONB,        -- { bp_systolic, bp_diastolic, bmi, weight, height, heart_rate, temperature }
     visit_summary TEXT,
     internal_notes TEXT, -- Only for doctors
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

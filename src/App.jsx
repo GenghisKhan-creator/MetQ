@@ -13,6 +13,8 @@ import Login from './pages/Login';
 import About from './pages/About';
 import Services from './pages/Services';
 import Technology from './pages/Technology';
+import PatientProfile from './pages/PatientProfile';
+import UserManagement from './pages/UserManagement';
 
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ChangePasswordModal from './components/ChangePasswordModal';
@@ -36,6 +38,8 @@ function App() {
             <Route path="/doctor-dashboard" element={<ProtectedRoute><DoctorDashboard /></ProtectedRoute>} />
             <Route path="/patient-dashboard" element={<ProtectedRoute><PatientDashboard /></ProtectedRoute>} />
             <Route path="/passport" element={<ProtectedRoute><MedicalPassport /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><PatientProfile /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute requireAdmin={true}><UserManagement /></ProtectedRoute>} />
           </Routes>
         </div>
       </Router>

@@ -2,6 +2,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { registerSchema, loginSchema } = require('../utils/validation');
+const path = require('path');
+const fs = require('fs');
 
 exports.register = async (req, res) => {
     const { error } = registerSchema.validate(req.body);
@@ -74,9 +76,11 @@ exports.login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        const token = jwt.sign({ id: user.rows[0].id, role: user.rows[0].role }, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRE
-        });
+        const token = jwt.sign(
+            { id: user.rows[0].id, role: user.rows[0].role, hospital_id: user.rows[0].hospital_id },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_EXPIRE }
+        );
 
         res.json({
             token,
@@ -86,6 +90,8 @@ exports.login = async (req, res) => {
                 email: user.rows[0].email,
                 role: user.rows[0].role,
                 medical_id: user.rows[0].medical_id,
+                hospital_id: user.rows[0].hospital_id,
+                avatar_url: user.rows[0].avatar_url,
                 requires_password_change: user.rows[0].requires_password_change
             }
         });
@@ -112,6 +118,72 @@ exports.changePassword = async (req, res) => {
         );
 
         res.json({ message: 'Password updated successfully' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.getProfile = async (req, res) => {
+    try {
+        const result = await db.query(
+            'SELECT id, full_name, email, phone, role, medical_id, hospital_id, status, avatar_url, created_at FROM users WHERE id = $1',
+            [req.user.id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.updateProfile = async (req, res) => {
+    const { full_name, phone } = req.body;
+    const userId = req.user.id;
+
+    if (!full_name || full_name.trim().length < 2) {
+        return res.status(400).json({ message: 'Full name must be at least 2 characters' });
+    }
+
+    try {
+        const result = await db.query(
+            'UPDATE users SET full_name = $1, phone = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, full_name, email, phone, role, medical_id, avatar_url',
+            [full_name.trim(), phone || null, userId]
+        );
+        res.json({ message: 'Profile updated successfully', user: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.uploadAvatar = async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No image file provided' });
+    }
+
+    const userId = req.user.id;
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    try {
+        // Delete old avatar file if it exists
+        const oldRecord = await db.query('SELECT avatar_url FROM users WHERE id = $1', [userId]);
+        if (oldRecord.rows[0]?.avatar_url) {
+            const oldPath = path.join(__dirname, '..', oldRecord.rows[0].avatar_url);
+            if (fs.existsSync(oldPath)) {
+                fs.unlinkSync(oldPath);
+            }
+        }
+
+        // Save new avatar URL to DB
+        const result = await db.query(
+            'UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, full_name, email, role, medical_id, avatar_url',
+            [avatarUrl, userId]
+        );
+
+        res.json({
+            message: 'Avatar updated successfully',
+            avatar_url: avatarUrl,
+            user: result.rows[0]
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Activity, User, LogOut, Menu } from 'lucide-react';
+import { Activity, User, LogOut, Menu, Shield, LayoutDashboard, ChevronDown } from 'lucide-react';
+import UserAvatar from './UserAvatar';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
@@ -9,11 +10,13 @@ const Navbar = () => {
     const location = useLocation();
     const [isLargeFont, setIsLargeFont] = useState(false);
     const [isHighContrast, setIsHighContrast] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
 
     const isActive = (path) => location.pathname === path;
 
     const handleLogout = () => {
         logout();
+        setShowUserMenu(false);
         navigate('/login');
     };
 
@@ -25,6 +28,18 @@ const Navbar = () => {
     const toggleHighContrast = () => {
         setIsHighContrast(!isHighContrast);
         document.documentElement.classList.toggle('high-contrast');
+    };
+
+    const getDashboardPath = () => {
+        if (user?.role === 'hospital_admin' || user?.role === 'super_admin') return '/dashboard';
+        if (user?.role === 'doctor') return '/doctor-dashboard';
+        return '/patient-dashboard';
+    };
+
+    const getDashboardLabel = () => {
+        if (user?.role === 'hospital_admin' || user?.role === 'super_admin') return 'Admin Dashboard';
+        if (user?.role === 'doctor') return 'Doctor Dashboard';
+        return 'My Dashboard';
     };
 
     return (
@@ -75,26 +90,74 @@ const Navbar = () => {
 
             <div className="flex items-center gap-4">
                 {user ? (
-                    <div className="flex items-center gap-4">
-                        {user.role === 'hospital_admin' || user.role === 'super_admin' ? (
-                            <Link to="/dashboard" className="px-6 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-all premium-shadow">
-                                Admin
-                            </Link>
-                        ) : user.role === 'doctor' ? (
-                            <Link to="/doctor-dashboard" className="px-6 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-all premium-shadow">
-                                Doctor
-                            </Link>
-                        ) : (
-                            <Link to="/patient-dashboard" className="px-6 py-2 bg-black text-white rounded-full text-sm font-medium hover:bg-gray-800 transition-all premium-shadow">
-                                Dashboard
-                            </Link>
-                        )}
-                        <Link to="/passport" className="px-6 py-2 bg-medical-soft text-medical-primary rounded-full text-sm font-medium hover:bg-blue-100 transition-all">
-                            Passport
-                        </Link>
-                        <button onClick={handleLogout} className="p-2 text-gray-500 hover:text-red-500 transition-colors">
-                            <LogOut size={20} />
+                    <div className="relative">
+                        {/* Avatar Button */}
+                        <button
+                            onClick={() => setShowUserMenu(!showUserMenu)}
+                            className="flex items-center gap-3 px-4 py-2 bg-white rounded-2xl border border-gray-100 premium-shadow hover:border-gray-300 transition-all"
+                        >
+                            <UserAvatar user={user} size="sm" />
+                            <div className="hidden md:block text-left">
+                                <div className="text-xs font-black text-gray-900 leading-none">{user.full_name?.split(' ')[0]}</div>
+                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{user.role?.replace('_', ' ')}</div>
+                            </div>
+                            <ChevronDown size={14} className={`text-gray-400 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
                         </button>
+
+                        {/* Dropdown Menu */}
+                        {showUserMenu && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)}></div>
+                                <div className="absolute right-0 mt-3 w-56 bg-white rounded-3xl premium-shadow border border-gray-100 overflow-hidden z-50">
+                                    {/* User Info */}
+                                    <div className="p-4 border-b border-gray-50 bg-gray-50/50">
+                                        <div className="font-black text-gray-900 text-sm">{user.full_name}</div>
+                                        <div className="text-xs text-gray-400 font-medium truncate">{user.email || user.medical_id}</div>
+                                    </div>
+                                    {/* Items */}
+                                    <div className="p-2">
+                                        <Link
+                                            to={getDashboardPath()}
+                                            onClick={() => setShowUserMenu(false)}
+                                            className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 text-gray-700 transition-colors group"
+                                        >
+                                            <LayoutDashboard size={16} className="text-gray-400 group-hover:text-medical-primary" />
+                                            <span className="text-sm font-bold">{getDashboardLabel()}</span>
+                                        </Link>
+
+                                        {user.role === 'patient' && (
+                                            <Link
+                                                to="/profile"
+                                                onClick={() => setShowUserMenu(false)}
+                                                className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 text-gray-700 transition-colors group"
+                                            >
+                                                <User size={16} className="text-gray-400 group-hover:text-medical-primary" />
+                                                <span className="text-sm font-bold">My Profile</span>
+                                            </Link>
+                                        )}
+
+                                        <Link
+                                            to="/passport"
+                                            onClick={() => setShowUserMenu(false)}
+                                            className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 text-gray-700 transition-colors group"
+                                        >
+                                            <Shield size={16} className="text-gray-400 group-hover:text-medical-primary" />
+                                            <span className="text-sm font-bold">Health Passport</span>
+                                        </Link>
+
+                                        <div className="border-t border-gray-100 mt-2 pt-2">
+                                            <button
+                                                onClick={handleLogout}
+                                                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-red-50 text-red-400 transition-colors"
+                                            >
+                                                <LogOut size={16} />
+                                                <span className="text-sm font-bold">Sign Out</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <Link to="/book" className="px-8 py-2.5 bg-black text-white rounded-full text-sm font-semibold hover:scale-105 transition-all premium-shadow active:scale-95">
