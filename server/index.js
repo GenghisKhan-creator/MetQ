@@ -54,6 +54,10 @@ const queueRoutes = require('./routes/queues');
 const medicalRoutes = require('./routes/medical');
 const adminRoutes = require('./routes/admin');
 const hospitalRoutes = require('./routes/hospitals');
+const { startJobs } = require('./services/cronService');
+
+// Start Background Jobs
+startJobs();
 
 // Routes Middleware
 app.use('/api/auth', authRoutes);

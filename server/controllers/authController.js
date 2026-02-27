@@ -137,7 +137,7 @@ exports.getProfile = async (req, res) => {
 };
 
 exports.updateProfile = async (req, res) => {
-    const { full_name, phone } = req.body;
+    const { full_name, phone, email } = req.body;
     const userId = req.user.id;
 
     if (!full_name || full_name.trim().length < 2) {
@@ -145,9 +145,16 @@ exports.updateProfile = async (req, res) => {
     }
 
     try {
+        if (email) {
+            const emailCheck = await db.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, userId]);
+            if (emailCheck.rows.length > 0) {
+                return res.status(400).json({ message: 'Email is already in use by another account' });
+            }
+        }
+
         const result = await db.query(
-            'UPDATE users SET full_name = $1, phone = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, full_name, email, phone, role, medical_id, avatar_url',
-            [full_name.trim(), phone || null, userId]
+            'UPDATE users SET full_name = $1, phone = $2, email = COALESCE($3, email), updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING id, full_name, email, phone, role, medical_id, avatar_url',
+            [full_name.trim(), phone || null, email || null, userId]
         );
         res.json({ message: 'Profile updated successfully', user: result.rows[0] });
     } catch (err) {

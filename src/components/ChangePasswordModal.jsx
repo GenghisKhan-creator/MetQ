@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Lock, ShieldAlert, ArrowRight, CheckCircle } from 'lucide-react';
+import { Lock, ShieldAlert, ArrowRight, CheckCircle, Eye, EyeOff } from 'lucide-react';
 
 const ChangePasswordModal = () => {
     const { user, changePassword, logout } = useAuth();
@@ -9,6 +9,8 @@ const ChangePasswordModal = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     if (!user || !user.requires_password_change) return null;
 
@@ -68,13 +70,20 @@ const ChangePasswordModal = () => {
                                 <div className="relative">
                                     <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                     <input
-                                        type="password"
+                                        type={showNewPassword ? "text" : "password"}
                                         placeholder="Min. 6 characters"
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
-                                        className="w-full pl-14 pr-6 py-5 bg-gray-50 rounded-[2rem] border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
+                                        className="w-full pl-14 pr-14 py-5 bg-gray-50 rounded-[2rem] border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                        className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
                                 </div>
                             </div>
 
@@ -83,13 +92,20 @@ const ChangePasswordModal = () => {
                                 <div className="relative">
                                     <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                     <input
-                                        type="password"
+                                        type={showConfirmPassword ? "text" : "password"}
                                         placeholder="Repeat new password"
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="w-full pl-14 pr-6 py-5 bg-gray-50 rounded-[2rem] border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
+                                        className="w-full pl-14 pr-14 py-5 bg-gray-50 rounded-[2rem] border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
                                         required
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
                                 </div>
                             </div>
 

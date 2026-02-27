@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { calculateWaitTime } = require('../services/queueService');
+const { sendQueueTurnNotification } = require('../services/emailService');
 
 exports.getLiveQueue = async (req, res) => {
     const { doctor_id } = req.params;
@@ -58,6 +59,14 @@ exports.updateQueueStatus = async (req, res) => {
             );
         }
 
+        // Add this to sync appointment status when queue entry is completed or marked as no_show
+        if (['completed', 'no_show', 'canceled'].includes(status)) {
+            await db.query(
+                'UPDATE appointments SET status = $1 WHERE id = $2',
+                [status, entry.appointment_id]
+            );
+        }
+
         // Get updated queue data to broadcast
         const queueData = await buildQueuePayload(entry.queue_id);
 
@@ -72,12 +81,28 @@ exports.updateQueueStatus = async (req, res) => {
         // Also notify the specific patient if it's their turn
         if (status === 'serving') {
             const aptRes = await db.query(
-                'SELECT a.patient_id FROM appointments a JOIN queue_entries qe ON a.id = qe.appointment_id WHERE qe.id = $1',
+                `SELECT a.patient_id, u.email, u.full_name, d.full_name as doctor_name
+                 FROM appointments a 
+                 JOIN queue_entries qe ON a.id = qe.appointment_id 
+                 JOIN users u ON a.patient_id = u.id
+                 JOIN doctors doc ON a.doctor_id = doc.id
+                 JOIN users d ON doc.user_id = d.id
+                 WHERE qe.id = $1`,
                 [queue_entry_id]
             );
             if (aptRes.rows.length > 0) {
-                io.emit(`patient_turn_${aptRes.rows[0].patient_id}`, {
+                const patient = aptRes.rows[0];
+                io.emit(`patient_turn_${patient.patient_id}`, {
                     message: "It's your turn! Please proceed to the consultation room."
+                });
+
+                // Send Queue Turn Email Notification
+                setImmediate(async () => {
+                    await sendQueueTurnNotification({
+                        to: patient.email,
+                        patientName: patient.full_name,
+                        doctorName: patient.doctor_name
+                    });
                 });
             }
         }

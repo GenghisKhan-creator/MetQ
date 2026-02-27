@@ -186,9 +186,11 @@ const QueueStatus = () => {
                         <div className="absolute top-[-20%] right-[-20%] w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
                         <p className="text-blue-100 text-sm font-bold uppercase tracking-widest mb-4">Now Serving</p>
                         <h3 ref={numberRef} className="text-8xl font-black mb-2">
-                            {queueData?.currentNumber || 0}
+                            {queueData?.entries?.find(e => e.status === 'serving') ? queueData.entries.find(e => e.status === 'serving').position : '—'}
                         </h3>
-                        <p className="text-blue-200 text-sm">Queue #{queueData?.currentNumber || 0}</p>
+                        <p className="text-blue-200 text-sm">
+                            {queueData?.entries?.find(e => e.status === 'serving') ? `Queue #${queueData.entries.find(e => e.status === 'serving').position}` : 'Doctor is idle'}
+                        </p>
                     </div>
 
                     {/* My Position */}

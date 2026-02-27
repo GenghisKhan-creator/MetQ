@@ -7,7 +7,7 @@ import UserAvatar from '../components/UserAvatar';
 import {
     User, Mail, Phone, Hash, Shield, Calendar, Clock,
     Edit3, Save, X, CheckCircle, XCircle, AlertTriangle,
-    ArrowRight, Activity, Stethoscope, Camera, Upload
+    ArrowRight, Activity, Stethoscope, Camera, Upload, Eye, EyeOff
 } from 'lucide-react';
 
 const statusConfig = {
@@ -41,7 +41,12 @@ const PatientProfile = () => {
     const [avatarPreview, setAvatarPreview] = useState(null);
     const fileInputRef = useRef(null);
 
-    const [form, setForm] = useState({ full_name: '', phone: '' });
+    const [form, setForm] = useState({ full_name: '', phone: '', email: '' });
+    const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+    const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
+    const [changingPassword, setChangingPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -56,7 +61,7 @@ const PatientProfile = () => {
                     ? `http://localhost:5000${profileData.avatar_url}`
                     : null
                 );
-                setForm({ full_name: profileData.full_name, phone: profileData.phone || '' });
+                setForm({ full_name: profileData.full_name, phone: profileData.phone || '', email: profileData.email });
                 setAppointments(appsRes.data);
 
                 // Sync avatar_url from DB → AuthContext so Navbar + Passport stay in sync
@@ -94,6 +99,24 @@ const PatientProfile = () => {
             setMsg({ type: 'error', text: err.response?.data?.message || 'Update failed' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handlePasswordSave = async (e) => {
+        e.preventDefault();
+        setPasswordMsg({ type: '', text: '' });
+        if (passwordForm.newPassword.length < 6) return setPasswordMsg({ type: 'error', text: 'Password must be at least 6 characters' });
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) return setPasswordMsg({ type: 'error', text: 'Passwords do not match' });
+
+        setChangingPassword(true);
+        try {
+            await axios.post('http://localhost:5000/api/auth/change-password', { newPassword: passwordForm.newPassword });
+            setPasswordMsg({ type: 'success', text: 'Password updated successfully!' });
+            setPasswordForm({ newPassword: '', confirmPassword: '' });
+        } catch (err) {
+            setPasswordMsg({ type: 'error', text: err.response?.data?.message || 'Password update failed' });
+        } finally {
+            setChangingPassword(false);
         }
     };
 
@@ -166,7 +189,7 @@ const PatientProfile = () => {
     const displayedApps = activeTab === 'upcoming' ? upcoming : past;
 
     const stats = [
-        { label: 'Total Visits', value: appointments.filter(a => a.status === 'completed').length, icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-50' },
+        { label: user?.role === 'patient' ? 'Total Visits' : 'Total Appointments', value: appointments.filter(a => a.status === 'completed').length, icon: CheckCircle, color: 'text-green-500', bg: 'bg-green-50' },
         { label: 'Upcoming', value: upcoming.length, icon: Calendar, color: 'text-blue-500', bg: 'bg-blue-50' },
         { label: 'Cancelled', value: appointments.filter(a => a.status === 'canceled').length, icon: XCircle, color: 'text-red-400', bg: 'bg-red-50' },
         { label: 'No-Shows', value: appointments.filter(a => a.status === 'no_show').length, icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-50' },
@@ -328,9 +351,21 @@ const PatientProfile = () => {
                                             />
                                         </div>
                                     </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-1 block">Email Address</label>
+                                        <div className="relative">
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                            <input
+                                                type="email"
+                                                value={form.email}
+                                                onChange={e => setForm({ ...form, email: e.target.value })}
+                                                className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-2xl border border-transparent focus:border-medical-primary outline-none transition-all text-sm font-medium"
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="flex gap-3 pt-2">
                                         <button
-                                            onClick={() => { setEditing(false); setForm({ full_name: profile?.full_name, phone: profile?.phone || '' }); }}
+                                            onClick={() => { setEditing(false); setForm({ full_name: profile?.full_name, phone: profile?.phone || '', email: profile?.email || '' }); }}
                                             className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
                                         >
                                             <X size={16} /> Cancel
@@ -347,6 +382,63 @@ const PatientProfile = () => {
                             )}
                         </div>
 
+                        {/* Password Change Card (Only when editing) */}
+                        {editing && (
+                            <div className="profile-card bg-white p-8 rounded-[2.5rem] premium-shadow border border-gray-100">
+                                <h3 className="font-black text-gray-900 mb-4">Change Password</h3>
+                                {passwordMsg.text && (
+                                    <div className={`mb-4 p-3 rounded-xl text-xs font-bold border ${passwordMsg.type === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                                        {passwordMsg.text}
+                                    </div>
+                                )}
+                                <form onSubmit={handlePasswordSave} className="space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-1 block">New Password</label>
+                                        <div className="relative">
+                                            <input
+                                                type={showNewPassword ? "text" : "password"}
+                                                value={passwordForm.newPassword}
+                                                onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                                                className="w-full px-4 py-3 pr-10 bg-gray-50 rounded-2xl border border-transparent focus:border-medical-primary outline-none transition-all text-sm font-medium"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                            >
+                                                {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-1 block">Confirm Password</label>
+                                        <div className="relative">
+                                            <input
+                                                type={showConfirmPassword ? "text" : "password"}
+                                                value={passwordForm.confirmPassword}
+                                                onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                                                className="w-full px-4 py-3 pr-10 bg-gray-50 rounded-2xl border border-transparent focus:border-medical-primary outline-none transition-all text-sm font-medium"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                            >
+                                                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={changingPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                                        className="w-full py-3 bg-black text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-medical-primary transition-all disabled:opacity-50"
+                                    >
+                                        {changingPassword ? 'Updating...' : 'Update Password'}
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
                         {/* Health ID Card (nice visual) */}
                         <div className="profile-card bg-gradient-to-br from-medical-primary to-blue-900 p-8 rounded-[2.5rem] text-white premium-shadow relative overflow-hidden">
                             <div className="absolute -right-8 -bottom-8 opacity-10">
@@ -361,33 +453,39 @@ const PatientProfile = () => {
                                     {profile?.medical_id || 'METQ-PENDING'}
                                 </div>
                                 <p className="text-blue-200 text-sm font-medium">{profile?.full_name}</p>
-                                <p className="text-blue-300 text-xs mt-1 font-bold uppercase tracking-widest">MetQ Patient</p>
+                                <p className="text-blue-300 text-xs mt-1 font-bold uppercase tracking-widest">
+                                    {user?.role === 'patient' ? 'MetQ Patient' :
+                                        user?.role === 'doctor' ? 'MetQ Doctor' :
+                                            'MetQ Admin'}
+                                </p>
                             </div>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className="profile-card bg-white p-6 rounded-[2.5rem] premium-shadow border border-gray-100 space-y-3">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Quick Actions</p>
-                            {[
-                                { label: 'Book Appointment', path: '/book', icon: Calendar, color: 'text-blue-500' },
-                                { label: 'Medical Passport', path: '/passport', icon: Shield, color: 'text-green-500' },
-                                { label: 'Live Queue', path: '/queue', icon: Activity, color: 'text-purple-500' },
-                            ].map(action => (
-                                <button
-                                    key={action.path}
-                                    onClick={() => navigate(action.path)}
-                                    className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 transition-colors group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-xl bg-gray-50 ${action.color}`}>
-                                            <action.icon size={16} />
+                        {/* Quick Actions (Patient Only) */}
+                        {user?.role === 'patient' && (
+                            <div className="profile-card bg-white p-6 rounded-[2.5rem] premium-shadow border border-gray-100 space-y-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Quick Actions</p>
+                                {[
+                                    { label: 'Book Appointment', path: '/book', icon: Calendar, color: 'text-blue-500' },
+                                    { label: 'Medical Passport', path: '/passport', icon: Shield, color: 'text-green-500' },
+                                    { label: 'Live Queue', path: '/queue', icon: Activity, color: 'text-purple-500' },
+                                ].map(action => (
+                                    <button
+                                        key={action.path}
+                                        onClick={() => navigate(action.path)}
+                                        className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 transition-colors group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-xl bg-gray-50 ${action.color}`}>
+                                                <action.icon size={16} />
+                                            </div>
+                                            <span className="font-bold text-sm text-gray-700">{action.label}</span>
                                         </div>
-                                        <span className="font-bold text-sm text-gray-700">{action.label}</span>
-                                    </div>
-                                    <ArrowRight size={16} className="text-gray-300 group-hover:text-gray-500 group-hover:translate-x-1 transition-all" />
-                                </button>
-                            ))}
-                        </div>
+                                        <ArrowRight size={16} className="text-gray-300 group-hover:text-gray-500 group-hover:translate-x-1 transition-all" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* RIGHT: Stats + Appointment History */}

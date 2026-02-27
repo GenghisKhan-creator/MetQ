@@ -106,12 +106,17 @@ const AdminDashboard = () => {
             connectSocket();
             socket.on('connect', () => joinHospitalRoom(currentUser.hospital_id));
             socket.on('queue_updated', () => fetchStats());
+            socket.on('emergency_override', (data) => {
+                setMsg({ type: 'error', text: data.message });
+                fetchStats();
+            });
         }
 
         return () => {
             clearInterval(interval);
             socket.off('connect');
             socket.off('queue_updated');
+            socket.off('emergency_override');
             disconnectSocket();
         };
     }, [currentUser]);
@@ -132,6 +137,28 @@ const AdminDashboard = () => {
             setMsg({ type: 'error', text: err.response?.data?.message || 'Failed to create staff account' });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleEmergencyOverride = async () => {
+        if (!window.confirm("WARNING: Emegency Override will instantly flush all live queues and forcefully cancel all pending appointments for today. This action cannot be undone. Are you absolutely sure you want to proceed?")) {
+            return;
+        }
+
+        try {
+            setMsg({ type: 'info', text: 'Initiating emergency override...' });
+            await axios.post(`http://localhost:5000/api/admin/emergency-override/${currentUser.hospital_id}`, {}, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+
+            // Local fallback refresh (sockets should cover this anyway)
+            fetchStats();
+
+            setMsg({ type: 'success', text: 'Emergency override completed successfully.' });
+            setTimeout(() => setMsg({ type: '', text: '' }), 5000);
+        } catch (err) {
+            console.error('Emergency Override failed:', err);
+            setMsg({ type: 'error', text: err.response?.data?.message || 'Emergency Override failed' });
         }
     };
 
@@ -164,6 +191,12 @@ const AdminDashboard = () => {
     return (
         <div className="min-h-screen pt-32 pb-20 px-8 bg-[#f8fafc]">
             <div className="max-w-7xl mx-auto">
+                {msg.text && (
+                    <div className={`mb-6 p-4 rounded-xl text-center font-bold ${msg.type === 'error' ? 'bg-red-100 text-red-600' :
+                        msg.type === 'success' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                        {msg.text}
+                    </div>
+                )}
                 <div className="flex justify-between items-center mb-12">
                     <div>
                         <h2 className="text-4xl font-bold text-gray-900 mb-2">Hospital Command Center</h2>
@@ -182,7 +215,9 @@ const AdminDashboard = () => {
                         >
                             <UserPlus size={18} /> Add Medical Staff
                         </button>
-                        <button className="px-6 py-3 bg-red-600 text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-red-700 transition-all text-sm premium-shadow">
+                        <button
+                            onClick={handleEmergencyOverride}
+                            className="px-6 py-3 bg-red-600 text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-red-700 transition-all text-sm premium-shadow">
                             <AlertTriangle size={18} /> Emergency Override
                         </button>
                     </div>
@@ -275,7 +310,7 @@ const AdminDashboard = () => {
                                             <td className="px-8 py-6 text-gray-500 text-sm">Dr. {item.doctor_name}</td>
                                             <td className="px-8 py-6">
                                                 <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.status === 'serving' ? 'bg-medical-primary text-white animate-pulse' : 'bg-gray-100 text-gray-500'
-                                                    }`}>{item.status}</span>
+                                                    }`}>{item.status.replace('_', ' ')}</span>
                                             </td>
                                             <td className="px-8 py-6">
                                                 <span className={`flex items-center gap-1.5 font-bold text-xs ${item.urgency === 'Critical' ? 'text-red-500' : 'text-gray-600'
@@ -285,7 +320,9 @@ const AdminDashboard = () => {
                                                 </span>
                                             </td>
                                             <td className="px-8 py-6">
-                                                <button className="text-medical-primary font-bold text-xs hover:underline">Manage</button>
+                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                    No Actions
+                                                </span>
                                             </td>
                                         </tr>
                                     )) : (
@@ -298,18 +335,29 @@ const AdminDashboard = () => {
                                             <td className="px-8 py-6 font-bold text-gray-900">{app.patient_name}</td>
                                             <td className="px-8 py-6 text-gray-500 text-sm">Dr. {app.doctor_name}</td>
                                             <td className="px-8 py-6">
-                                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${app.is_checked_in ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'
-                                                    }`}>{app.is_checked_in ? 'In Queue' : app.status}</span>
+                                                <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${app.is_checked_in ? 'bg-green-100 text-green-600' :
+                                                    app.status === 'pending' ? 'bg-orange-100 text-orange-600' :
+                                                        app.status === 'canceled' || app.status === 'no_show' ? 'bg-red-100 text-red-600' :
+                                                            app.status === 'completed' ? 'bg-blue-100 text-blue-600' :
+                                                                'bg-gray-100 text-gray-500'
+                                                    }`}>
+                                                    {app.is_checked_in ? 'In Queue' : app.status.replace('_', ' ')}
+                                                </span>
                                             </td>
                                             <td className="px-8 py-6 font-bold text-xs">{app.urgency}</td>
                                             <td className="px-8 py-6">
-                                                {!app.is_checked_in && (
+                                                {!app.is_checked_in && app.status === 'pending' && (
                                                     <button
                                                         onClick={() => handleCheckIn(app.id)}
                                                         className="px-4 py-2 bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-medical-primary transition-all shadow-md active:scale-95"
                                                     >
                                                         Manual Check-in
                                                     </button>
+                                                )}
+                                                {app.status !== 'pending' && (
+                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                                        No Actions
+                                                    </span>
                                                 )}
                                             </td>
                                         </tr>

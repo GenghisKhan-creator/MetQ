@@ -38,7 +38,7 @@ const PatientDashboard = () => {
 
                 // If there's an appointment today, try to get live queue
                 const today = new Date().toISOString().split('T')[0];
-                const todaysApt = apptRes.data.find(a => a.appointment_date.split('T')[0] === today && a.status !== 'canceled');
+                const todaysApt = apptRes.data.find(a => a.appointment_date.split('T')[0] === today && !['canceled', 'completed', 'no_show'].includes(a.status));
 
                 if (todaysApt) {
                     try {
@@ -72,7 +72,16 @@ const PatientDashboard = () => {
         connectSocket();
         socket.on('connect', () => joinQueueRoom(liveQueue.doctorId));
         socket.on('queue_updated', (data) => {
-            setLiveQueue(prev => ({ ...prev, ...data }));
+            setLiveQueue(prev => {
+                if (!prev) return prev;
+                // If patient disappears from active queue entries, their session likely completed
+                const stillInQueue = data.entries?.some(e => e.patient_user_id === user?.id);
+                if (!stillInQueue) {
+                    setMyTurn(false);
+                    return null;
+                }
+                return { ...prev, ...data };
+            });
         });
         if (user?.id) {
             socket.on(`patient_turn_${user.id}`, () => setMyTurn(true));
@@ -179,11 +188,22 @@ const PatientDashboard = () => {
                                         </div>
                                     ) : (
                                         <>
-                                            <div className="flex items-baseline gap-2 mb-2">
-                                                <span className="text-8xl font-black">#{liveQueue.currentNumber || '0'}</span>
-                                                <span className="text-2xl font-bold opacity-60">serving</span>
-                                            </div>
-                                            <p className="text-blue-100 font-medium">Currently treating patients with Dr. {liveQueue.doctor}</p>
+                                            {liveQueue.entries?.find(e => e.status === 'serving') ? (
+                                                <>
+                                                    <div className="flex items-baseline gap-2 mb-2">
+                                                        <span className="text-8xl font-black">#{liveQueue.entries.find(e => e.status === 'serving').position}</span>
+                                                        <span className="text-2xl font-bold opacity-60">serving</span>
+                                                    </div>
+                                                    <p className="text-blue-100 font-medium">Currently treating patients with Dr. {liveQueue.doctor}</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="flex items-baseline gap-2 mb-2">
+                                                        <span className="text-6xl font-black">Idle</span>
+                                                    </div>
+                                                    <p className="text-blue-100 font-medium">Dr. {liveQueue.doctor} is preparing for the next patient.</p>
+                                                </>
+                                            )}
                                         </>
                                     )}
                                 </div>

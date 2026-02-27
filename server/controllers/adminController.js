@@ -44,7 +44,7 @@ exports.getStats = async (req, res) => {
         const todayApps = await db.query(
             `SELECT a.*, u.full_name as patient_name, d_user.full_name as doctor_name,
                     t.urgency,
-                    EXISTS(SELECT 1 FROM queue_entries qe WHERE qe.appointment_id = a.id) as is_checked_in
+                    EXISTS(SELECT 1 FROM queue_entries qe WHERE qe.appointment_id = a.id AND qe.status IN ('waiting', 'serving')) as is_checked_in
              FROM appointments a
              JOIN users u ON a.patient_id = u.id
              JOIN doctors dr ON a.doctor_id = dr.id
@@ -236,6 +236,68 @@ exports.deleteUser = async (req, res) => {
         res.json({ message: `${targetUser.full_name}'s account has been permanently deleted.`, deleted_id: user_id });
     } catch (err) {
         console.error('deleteUser error:', err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+/**
+ * POST /api/admin/emergency-override/:hospital_id
+ * Wipes out all today's active queues and marks pending appointments as canceled
+ */
+exports.emergencyOverride = async (req, res) => {
+    const { hospital_id } = req.params;
+    const today = new Date().toISOString().split('T')[0];
+    const io = req.app.get('io');
+
+    try {
+        // Admin validation
+        if (req.user.role === 'hospital_admin' && req.user.hospital_id !== hospital_id) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        // 1. Get all pending/active appointments for today
+        const appointmentsToCancel = await db.query(
+            `SELECT id FROM appointments 
+             WHERE hospital_id = $1 AND appointment_date = $2 
+             AND status IN ('pending', 'confirmed')`,
+            [hospital_id, today]
+        );
+
+        const appointmentIds = appointmentsToCancel.rows.map(a => a.id);
+
+        if (appointmentIds.length > 0) {
+            // 2. Delete all related queue entries
+            await db.query(
+                `DELETE FROM queue_entries 
+                 WHERE appointment_id = ANY($1)`,
+                [appointmentIds]
+            );
+
+            // 3. Mark appointments as canceled
+            await db.query(
+                `UPDATE appointments 
+                 SET status = 'canceled', updated_at = CURRENT_TIMESTAMP 
+                 WHERE id = ANY($1)`,
+                [appointmentIds]
+            );
+        }
+
+        // 4. Reset queue numbers
+        await db.query(
+            `UPDATE queues 
+             SET current_serving_number = 0, total_in_queue = 0, is_active = false
+             WHERE hospital_id = $1 AND date = $2`,
+            [hospital_id, today]
+        );
+
+        // Emit to hospital room to tell everyone the queue is wiped
+        io.to(`hospital_${hospital_id}`).emit('emergency_override', {
+            message: "Emergency Override Activated. System queues have been cleared."
+        });
+
+        res.json({ message: 'Emergency override activated successfully. All daily queues flushed and pending appointments canceled.' });
+    } catch (err) {
+        console.error('Emergency Override Error:', err);
         res.status(500).json({ message: err.message });
     }
 };

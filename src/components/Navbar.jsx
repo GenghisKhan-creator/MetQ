@@ -125,16 +125,14 @@ const Navbar = () => {
                                             <span className="text-sm font-bold">{getDashboardLabel()}</span>
                                         </Link>
 
-                                        {user.role === 'patient' && (
-                                            <Link
-                                                to="/profile"
-                                                onClick={() => setShowUserMenu(false)}
-                                                className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 text-gray-700 transition-colors group"
-                                            >
-                                                <User size={16} className="text-gray-400 group-hover:text-medical-primary" />
-                                                <span className="text-sm font-bold">My Profile</span>
-                                            </Link>
-                                        )}
+                                        <Link
+                                            to="/profile"
+                                            onClick={() => setShowUserMenu(false)}
+                                            className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-gray-50 text-gray-700 transition-colors group"
+                                        >
+                                            <User size={16} className="text-gray-400 group-hover:text-medical-primary" />
+                                            <span className="text-sm font-bold">My Profile</span>
+                                        </Link>
 
                                         <Link
                                             to="/passport"

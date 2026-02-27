@@ -43,7 +43,11 @@ const DoctorDashboard = () => {
         symptoms: '',
         prescriptions: '',
         lab_results: '',
-        visit_summary: ''
+        visit_summary: '',
+        bp_systolic: '',
+        bp_diastolic: '',
+        bmi: '',
+        heart_rate: ''
     });
 
     useEffect(() => {
@@ -112,7 +116,13 @@ const DoctorDashboard = () => {
             const payload = {
                 ...reportForm,
                 prescriptions: { list: reportForm.prescriptions.split(',').map(p => p.trim()) },
-                lab_results: { notes: reportForm.lab_results }
+                lab_results: { notes: reportForm.lab_results },
+                vitals: {
+                    bp_systolic: reportForm.bp_systolic,
+                    bp_diastolic: reportForm.bp_diastolic,
+                    bmi: reportForm.bmi,
+                    heart_rate: reportForm.heart_rate
+                }
             };
             await axios.post('http://localhost:5000/api/medical/record', payload);
             setMsg({ type: 'success', text: 'Medical record updated successfully!' });
@@ -125,7 +135,7 @@ const DoctorDashboard = () => {
 
             setTimeout(() => {
                 setShowReportModal(false);
-                setReportForm({ patient_id: '', diagnosis: '', symptoms: '', prescriptions: '', lab_results: '', visit_summary: '' });
+                setReportForm({ patient_id: '', diagnosis: '', symptoms: '', prescriptions: '', lab_results: '', visit_summary: '', bp_systolic: '', bp_diastolic: '', bmi: '', heart_rate: '' });
                 setMsg({ type: '', text: '' });
             }, 2000);
         } catch (err) {
@@ -207,18 +217,27 @@ const DoctorDashboard = () => {
                                         <div className="flex items-center gap-4">
                                             <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${apt.status === 'serving' ? 'bg-medical-primary text-white animate-pulse' :
                                                 apt.status === 'completed' ? 'bg-green-100 text-green-600' :
-                                                    'bg-orange-100 text-orange-600'
+                                                    apt.status === 'no_show' ? 'bg-red-100 text-red-600' :
+                                                        'bg-orange-100 text-orange-600'
                                                 }`}>
-                                                {apt.status}
+                                                {apt.status.replace('_', ' ')}
                                             </span>
 
                                             {apt.status === 'waiting' && (
-                                                <button
-                                                    onClick={() => handleUpdateStatus(apt.queue_entry_id, 'serving')}
-                                                    className="px-4 py-2 bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-medical-primary transition-all"
-                                                >
-                                                    Start Visit
-                                                </button>
+                                                <>
+                                                    <button
+                                                        onClick={() => handleUpdateStatus(apt.queue_entry_id, 'serving')}
+                                                        className="px-4 py-2 bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-medical-primary transition-all"
+                                                    >
+                                                        Start Visit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleUpdateStatus(apt.queue_entry_id, 'no_show')}
+                                                        className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 hover:text-red-700 transition-all border border-red-100 ml-2"
+                                                    >
+                                                        No Show
+                                                    </button>
+                                                </>
                                             )}
 
                                             {apt.status === 'serving' && (
@@ -369,6 +388,51 @@ const DoctorDashboard = () => {
                                     />
                                 </div>
                             </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">BP Sys (mmHg)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="120"
+                                        value={reportForm.bp_systolic}
+                                        onChange={(e) => setReportForm({ ...reportForm, bp_systolic: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">BP Dia (mmHg)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="80"
+                                        value={reportForm.bp_diastolic}
+                                        onChange={(e) => setReportForm({ ...reportForm, bp_diastolic: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">Heart Rate (bpm)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="72"
+                                        value={reportForm.heart_rate}
+                                        onChange={(e) => setReportForm({ ...reportForm, heart_rate: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-2">BMI</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        placeholder="24.5"
+                                        value={reportForm.bmi}
+                                        onChange={(e) => setReportForm({ ...reportForm, bmi: e.target.value })}
+                                        className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-bold"
+                                    />
+                                </div>
+                            </div>
+
 
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Visit Summary & Internal Notes</label>
