@@ -14,18 +14,30 @@ exports.register = async (req, res) => {
     // Security: Only admins can create doctor or hospital_admin accounts
     if (role !== 'patient') {
         const authHeader = req.headers.authorization;
-        if (!authHeader) {
-            return res.status(401).json({ message: 'Unauthorized. Staff accounts must be created by an admin.' });
+        let isAuthorized = false;
+
+        if (authHeader) {
+            try {
+                const token = authHeader.split(' ')[1];
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                if (decoded.role === 'hospital_admin' || decoded.role === 'super_admin') {
+                    isAuthorized = true;
+                }
+            } catch (err) {
+                // Invalid token, we will handle unauthorized below
+            }
         }
 
-        try {
-            const token = authHeader.split(' ')[1];
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            if (decoded.role !== 'hospital_admin' && decoded.role !== 'super_admin') {
-                return res.status(403).json({ message: 'Forbidden. Only admins can create staff accounts.' });
+        // Allow creation of the first admin account if none exists in the DB
+        if (!isAuthorized && role === 'hospital_admin') {
+            const adminCheck = await db.query("SELECT id FROM users WHERE role IN ('hospital_admin', 'super_admin') LIMIT 1");
+            if (adminCheck.rows.length === 0) {
+                isAuthorized = true; // First admin bypass
             }
-        } catch (err) {
-            return res.status(401).json({ message: 'Invalid token' });
+        }
+
+        if (!isAuthorized) {
+            return res.status(401).json({ message: 'Unauthorized. Staff accounts must be created by an existing admin.' });
         }
     }
 
@@ -41,10 +53,29 @@ exports.register = async (req, res) => {
         const medical_id = role === 'patient' ? `METQ-${Math.random().toString(36).substr(2, 9).toUpperCase()}` : null;
         const requires_password_change = role !== 'patient';
 
+        let final_hospital_id = hospital_id;
+        // Fix to assign default hospital to super admins and hospital admins when not provided
+        if ((role === 'hospital_admin' || role === 'super_admin') && !final_hospital_id) {
+            const hRes = await db.query('SELECT id FROM hospitals LIMIT 1');
+            if (hRes.rows.length > 0) {
+                final_hospital_id = hRes.rows[0].id;
+            } else {
+                const newHRes = await db.query("INSERT INTO hospitals (name, email) VALUES ('MetQ Default Hospital', 'contact@metq.com') RETURNING id");
+                final_hospital_id = newHRes.rows[0].id;
+            }
+        }
+
         const newUser = await db.query(
             'INSERT INTO users (full_name, email, password_hash, phone, role, hospital_id, medical_id, requires_password_change) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, full_name, email, role, medical_id, requires_password_change',
-            [full_name, email, hashedPassword, phone, role, hospital_id, medical_id, requires_password_change]
+            [full_name, email, hashedPassword, phone, role, final_hospital_id, medical_id, requires_password_change]
         );
+
+        if (role === 'doctor') {
+            await db.query(
+                'INSERT INTO doctors (user_id, specialty_id, bio, is_available) VALUES ($1, $2, $3, $4)',
+                [newUser.rows[0].id, req.body.specialty_id || null, req.body.bio || null, true]
+            );
+        }
 
         const token = jwt.sign({ id: newUser.rows[0].id, role: newUser.rows[0].role }, process.env.JWT_SECRET, {
             expiresIn: process.env.JWT_EXPIRE

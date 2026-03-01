@@ -165,8 +165,21 @@ const QueueStatus = () => {
                     </div>
                 </div>
 
+                {/* Queue Paused Alert */}
+                {queueData && queueData.is_active === false && (
+                    <div className="mb-8 p-6 bg-orange-50 border border-orange-200 rounded-[2rem] text-orange-600 flex items-center gap-5 premium-shadow">
+                        <div className="p-3 bg-orange-100 rounded-xl">
+                            <AlertCircle size={28} className="text-orange-500" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black mb-1">Queue is Paused</h3>
+                            <p className="font-medium">The doctor is currently taking a break or attending to an emergency. Wait times may be longer.</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Your Turn Alert */}
-                {myTurn && (
+                {myTurn && queueData?.is_active !== false && (
                     <div className="your-turn-alert mb-8 p-8 bg-gradient-to-r from-green-500 to-emerald-600 rounded-[2.5rem] text-white premium-shadow flex items-center gap-6">
                         <div className="p-4 bg-white/20 rounded-2xl">
                             <CheckCircle size={32} />

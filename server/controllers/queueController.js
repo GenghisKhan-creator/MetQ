@@ -32,6 +32,7 @@ exports.getLiveQueue = async (req, res) => {
 
         res.json({
             queueId: queueRes.rows[0].id,
+            is_active: queueRes.rows[0].is_active,
             currentNumber: queueRes.rows[0].current_serving_number,
             waitingCount: entries.rows.filter(e => e.status === 'waiting').length,
             entries: entries.rows
@@ -176,6 +177,34 @@ exports.manualCheckIn = async (req, res) => {
     }
 };
 
+exports.toggleQueueStatus = async (req, res) => {
+    const { doctor_id } = req.params;
+    const { is_active } = req.body;
+    const io = req.app.get('io');
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+        const queueRes = await db.query(
+            'UPDATE queues SET is_active = $1 WHERE doctor_id = $2 AND date = $3 RETURNING *',
+            [is_active, doctor_id, today]
+        );
+
+        if (queueRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Queue not found today' });
+        }
+
+        const queueData = await buildQueuePayload(queueRes.rows[0].id);
+
+        io.to(`queue_${doctor_id}`).emit('queue_updated', queueData);
+        // Also notify hospital room
+        io.to(`hospital_${queueRes.rows[0].hospital_id}`).emit('queue_updated', queueData);
+
+        res.json({ message: `Queue ${is_active ? 'resumed' : 'paused'} successfully` });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
 // Helper: build queue snapshot for broadcasting
 async function buildQueuePayload(queueId) {
     const entries = await db.query(
@@ -190,6 +219,7 @@ async function buildQueuePayload(queueId) {
     const queueRow = await db.query('SELECT * FROM queues WHERE id = $1', [queueId]);
     return {
         queueId,
+        is_active: queueRow.rows[0]?.is_active,
         currentNumber: queueRow.rows[0]?.current_serving_number || 0,
         waitingCount: entries.rows.filter(e => e.status === 'waiting').length,
         entries: entries.rows

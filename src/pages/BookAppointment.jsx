@@ -43,11 +43,83 @@ const isSlotAvailable = (timeStr, selectedDateIso) => {
     return h * 60 + m > now.getHours() * 60 + now.getMinutes() + 30;
 };
 
-const TIME_SLOTS = [
-    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-    '11:00', '11:30', '13:00', '13:30', '14:00', '14:30',
-    '15:00', '15:30', '16:00', '16:30'
-];
+// Time slots are generated dynamically now
+
+const getDynamicAvailableDates = (schedules) => {
+    const dates = [];
+    const now = new Date();
+    const todayDay = now.getDay();
+    const beforeCutoff = now.getHours() < BOOKING_CUTOFF_HOUR;
+
+    // Check if today is working day according to schedule
+    const todaySched = schedules.find(s => s.day_of_week === todayDay);
+    const todayIsWorking = todaySched ? !todaySched.is_off : (todayDay !== 0 && todayDay !== 6);
+
+    if (todayIsWorking && beforeCutoff) {
+        dates.push(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+    }
+
+    const d = new Date(now);
+    while (dates.length < 14) {
+        d.setDate(d.getDate() + 1);
+        const day = d.getDay();
+        const sched = schedules.find(s => s.day_of_week === day);
+        const isWorking = sched ? !sched.is_off : (day !== 0 && day !== 6);
+
+        if (isWorking) {
+            dates.push(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+        }
+    }
+    return dates;
+};
+
+const generateTimeSlots = (selectedDateIso, schedules) => {
+    if (!selectedDateIso) return [];
+    const dateObj = new Date(selectedDateIso);
+    const dayOfWeek = dateObj.getDay();
+    const sched = schedules.find(s => s.day_of_week === dayOfWeek);
+
+    if (sched && sched.is_off) return [];
+
+    let start = "08:00";
+    let end = "16:30";
+    let lunchStart = "12:00";
+    let lunchEnd = "13:00";
+
+    if (sched) {
+        if (sched.start_time) start = sched.start_time.substring(0, 5);
+        if (sched.end_time) end = sched.end_time.substring(0, 5);
+        if (sched.lunch_start) lunchStart = sched.lunch_start.substring(0, 5);
+        if (sched.lunch_end) lunchEnd = sched.lunch_end.substring(0, 5);
+    }
+
+    const slots = [];
+    let current = start;
+
+    const parseToMinutes = (timeStr) => {
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+    };
+
+    const endMins = parseToMinutes(end);
+    let currentMins = parseToMinutes(start);
+    const lsMins = parseToMinutes(lunchStart);
+    const leMins = parseToMinutes(lunchEnd);
+
+    while (currentMins < endMins) {
+        if (currentMins >= lsMins && currentMins < leMins) {
+            currentMins = leMins; // skip lunch break
+            continue;
+        }
+
+        const h = Math.floor(currentMins / 60).toString().padStart(2, '0');
+        const m = (currentMins % 60).toString().padStart(2, '0');
+        slots.push(`${h}:${m}`);
+        currentMins += 30; // 30 mins interval
+    }
+
+    return slots;
+};
 
 const BookAppointment = () => {
     const { user } = useAuth();
@@ -57,6 +129,7 @@ const BookAppointment = () => {
     const [doctors, setDoctors] = useState([]);
     const [selectedHospital, setSelectedHospital] = useState('');
     const [selectedDoctor, setSelectedDoctor] = useState('');
+    const [doctorSchedules, setDoctorSchedules] = useState([]);
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedSlot, setSelectedSlot] = useState('');
     const [responses, setResponses] = useState({
@@ -69,7 +142,8 @@ const BookAppointment = () => {
     const [loading, setLoading] = useState(false);
     const [bookingStatus, setBookingStatus] = useState({ type: '', text: '' });
 
-    const availableDates = getAvailableDates();
+    const availableDates = getDynamicAvailableDates(doctorSchedules);
+    const dynamicTimeSlots = generateTimeSlots(selectedDate, doctorSchedules);
 
     useEffect(() => {
         const fetchHospitals = async () => {
@@ -96,6 +170,27 @@ const BookAppointment = () => {
             fetchDoctors();
         }
     }, [selectedHospital]);
+
+    useEffect(() => {
+        if (selectedDoctor) {
+            const fetchSchedule = async () => {
+                try {
+                    const res = await axios.get(`http://localhost:5000/api/doctors/${selectedDoctor}/schedule`, {
+                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                    });
+                    setDoctorSchedules(res.data || []);
+                } catch (err) {
+                    console.error('Failed to fetch doctor schedule');
+                    setDoctorSchedules([]);
+                }
+            };
+            fetchSchedule();
+        } else {
+            setDoctorSchedules([]);
+            setSelectedDate('');
+            setSelectedSlot('');
+        }
+    }, [selectedDoctor]);
 
     const animateIn = (selector) => {
         gsap.from(selector, { y: 20, opacity: 0, duration: 0.5, ease: 'power3.out' });
@@ -353,7 +448,9 @@ const BookAppointment = () => {
                                         </p>
                                     )}
                                     <div className="grid grid-cols-4 gap-3">
-                                        {TIME_SLOTS.map((time) => {
+                                        {dynamicTimeSlots.length === 0 ? (
+                                            <div className="col-span-4 text-center text-sm font-bold text-gray-400 py-4">No available slots for this date.</div>
+                                        ) : dynamicTimeSlots.map((time) => {
                                             const available = isSlotAvailable(time, selectedDate);
                                             return (
                                                 <button
@@ -362,10 +459,10 @@ const BookAppointment = () => {
                                                     disabled={!available}
                                                     title={!available ? 'This slot has already passed' : ''}
                                                     className={`p-3 rounded-2xl border-2 transition-all text-center text-sm font-bold ${!available
-                                                            ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through'
-                                                            : selectedSlot === time
-                                                                ? 'border-medical-primary bg-medical-soft text-medical-primary'
-                                                                : 'border-gray-100 hover:border-medical-primary text-gray-700'
+                                                        ? 'border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed line-through'
+                                                        : selectedSlot === time
+                                                            ? 'border-medical-primary bg-medical-soft text-medical-primary'
+                                                            : 'border-gray-100 hover:border-medical-primary text-gray-700'
                                                         }`}
                                                 >
                                                     {time}

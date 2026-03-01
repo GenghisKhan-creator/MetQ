@@ -199,12 +199,20 @@ exports.getDoctorDashboardData = async (req, res) => {
             [doctor_id, today]
         );
 
+        let queueActive = true;
+        const queueRes = await db.query('SELECT is_active FROM queues WHERE doctor_id = $1 AND date = $2', [doctor_id, today]);
+        if (queueRes.rows.length > 0) {
+            queueActive = queueRes.rows[0].is_active;
+        }
+
         const totalPatients = appointments.rows.length;
         const pending = appointments.rows.filter(a => a.status === 'confirmed' || a.status === 'pending').length;
         const completed = appointments.rows.filter(a => a.status === 'completed').length;
         const avgWait = '12m';
 
         res.json({
+            queue_active: queueActive,
+            doctor_id: doctor_id,
             stats: [
                 { label: "Today's Patients", value: totalPatients.toString(), icon: 'Users', color: 'bg-blue-500' },
                 { label: 'Pending', value: pending.toString(), icon: 'Clock', color: 'bg-orange-500' },

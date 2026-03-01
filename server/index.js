@@ -54,10 +54,16 @@ const queueRoutes = require('./routes/queues');
 const medicalRoutes = require('./routes/medical');
 const adminRoutes = require('./routes/admin');
 const hospitalRoutes = require('./routes/hospitals');
+const doctorRoutes = require('./routes/doctors');
+const invoiceRoutes = require('./routes/invoices');
 const { startJobs } = require('./services/cronService');
+const initDB = require('./services/initDB');
 
 // Start Background Jobs
 startJobs();
+
+// Initialize DB (Create default super_admin)
+initDB();
 
 // Routes Middleware
 app.use('/api/auth', authRoutes);
@@ -66,6 +72,8 @@ app.use('/api/queues', queueRoutes);
 app.use('/api/medical', medicalRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/hospitals', hospitalRoutes);
+app.use('/api/doctors', doctorRoutes);
+app.use('/api/invoices', invoiceRoutes);
 
 // Socket.io Real-time Connection
 io.on('connection', (socket) => {

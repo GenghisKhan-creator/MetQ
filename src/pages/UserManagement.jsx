@@ -6,7 +6,7 @@ import UserAvatar from '../components/UserAvatar';
 import {
     Users, Stethoscope, Search, Trash2, AlertTriangle, X,
     Mail, Phone, Hash, Calendar, ChevronLeft, ChevronRight,
-    ShieldOff, UserX, CheckCircle, Clock, RefreshCw
+    ShieldOff, UserX, CheckCircle, Clock, RefreshCw, Shield, FileText
 } from 'lucide-react';
 
 const API = 'http://localhost:5000';
@@ -331,6 +331,17 @@ export default function UserManagement() {
                                         <div className={`w-2 h-2 rounded-full ${selectedUser.status === 'active' ? 'bg-green-400' : 'bg-red-400'}`} />
                                         Account {selectedUser.status}
                                     </div>
+
+                                    {/* View Passport (Patient only) */}
+                                    {selectedUser.role === 'patient' && (
+                                        <button
+                                            onClick={() => navigate(`/passport/${selectedUser.id}`)}
+                                            className="w-full flex items-center justify-center gap-2 py-3 bg-medical-primary text-white rounded-2xl text-sm font-black hover:bg-blue-600 transition-all premium-shadow"
+                                        >
+                                            <Shield size={15} />
+                                            View Medical Passport
+                                        </button>
+                                    )}
 
                                     {/* Delete */}
                                     <button

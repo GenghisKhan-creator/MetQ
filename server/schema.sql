@@ -166,3 +166,28 @@ CREATE INDEX idx_appointments_patient ON appointments(patient_id);
 CREATE INDEX idx_appointments_doctor ON appointments(doctor_id);
 CREATE INDEX idx_queue_entries_queue ON queue_entries(queue_id);
 CREATE INDEX idx_medical_records_patient ON medical_records(patient_id);
+  
+-- Doctor Schedules  
+CREATE TABLE doctor_schedules (  
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),  
+    doctor_id UUID REFERENCES doctors(id) ON DELETE CASCADE,  
+    day_of_week INTEGER CHECK (day_of_week >= 0 AND day_of_week <= 6),  
+    start_time TIME,  
+    end_time TIME,  
+    is_off BOOLEAN DEFAULT FALSE,  
+    lunch_start TIME,  
+    lunch_end TIME,  
+    UNIQUE(doctor_id, day_of_week)  
+); 
+
+CREATE TABLE invoices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    patient_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    doctor_id UUID REFERENCES doctors(id) ON DELETE SET NULL,
+    appointment_id UUID REFERENCES appointments(id) ON DELETE SET NULL,
+    amount NUMERIC(10, 2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'unpaid',
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

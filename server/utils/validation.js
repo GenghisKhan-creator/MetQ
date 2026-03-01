@@ -6,7 +6,9 @@ const registerSchema = Joi.object({
     password: Joi.string().min(6).required(),
     phone: Joi.string().max(20),
     role: Joi.string().valid('patient', 'doctor', 'hospital_admin'),
-    hospital_id: Joi.string().uuid()
+    hospital_id: Joi.string().uuid(),
+    specialty_id: Joi.string().uuid().allow('', null),
+    bio: Joi.string().allow('', null)
 });
 
 const loginSchema = Joi.object({

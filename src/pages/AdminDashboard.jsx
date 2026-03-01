@@ -12,7 +12,7 @@ import {
     Legend,
     ArcElement
 } from 'chart.js';
-import { Activity, Users, Clock, AlertTriangle, ShieldCheck, TrendingUp, UserPlus, X, Mail, Lock, User } from 'lucide-react';
+import { Activity, Users, Clock, AlertTriangle, ShieldCheck, TrendingUp, UserPlus, X, Mail, Lock, User, Stethoscope, FileText } from 'lucide-react';
 import { gsap } from 'gsap';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -40,8 +40,11 @@ const AdminDashboard = () => {
         email: '',
         password: '',
         role: 'doctor',
-        hospital_id: currentUser?.hospital_id
+        hospital_id: currentUser?.hospital_id,
+        specialty_id: '',
+        bio: ''
     });
+    const [specialties, setSpecialties] = useState([]);
     const [loading, setLoading] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
 
@@ -79,6 +82,15 @@ const AdminDashboard = () => {
     };
 
     useEffect(() => {
+        const fetchSpecialties = async () => {
+            try {
+                const res = await axios.get('http://localhost:5000/api/hospitals/specialties');
+                setSpecialties(res.data);
+            } catch (err) {
+                console.error('Failed to fetch specialties', err);
+            }
+        };
+        fetchSpecialties();
         fetchStats();
         // Fallback polling every 60s (socket handles real-time)
         const interval = setInterval(fetchStats, 60000);
@@ -130,7 +142,7 @@ const AdminDashboard = () => {
             setMsg({ type: 'success', text: 'Staff account created successfully!' });
             setTimeout(() => {
                 setShowStaffModal(false);
-                setStaffForm({ full_name: '', email: '', password: '', role: 'doctor', hospital_id: currentUser?.hospital_id });
+                setStaffForm({ full_name: '', email: '', password: '', role: 'doctor', hospital_id: currentUser?.hospital_id, specialty_id: '', bio: '' });
                 setMsg({ type: '', text: '' });
             }, 2000);
         } catch (err) {
@@ -208,6 +220,12 @@ const AdminDashboard = () => {
                             className="px-6 py-3 bg-white border border-gray-100 text-gray-700 rounded-2xl font-bold flex items-center gap-2 hover:border-medical-primary hover:text-medical-primary transition-all text-sm premium-shadow"
                         >
                             <Users size={18} /> Manage Users
+                        </button>
+                        <button
+                            onClick={() => navigate('/admin/specialties')}
+                            className="px-6 py-3 bg-white border border-gray-100 text-gray-700 rounded-2xl font-bold flex items-center gap-2 hover:border-medical-primary hover:text-medical-primary transition-all text-sm premium-shadow"
+                        >
+                            <Stethoscope size={18} /> Manage Specialties
                         </button>
                         <button
                             onClick={() => setShowStaffModal(true)}
@@ -443,6 +461,34 @@ const AdminDashboard = () => {
                                     </button>
                                 ))}
                             </div>
+
+                            {staffForm.role === 'doctor' && (
+                                <>
+                                    <div className="relative">
+                                        <Stethoscope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                        <select
+                                            value={staffForm.specialty_id}
+                                            onChange={(e) => setStaffForm({ ...staffForm, specialty_id: e.target.value })}
+                                            className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-medium appearance-none"
+                                            required
+                                        >
+                                            <option value="">Select Specialty</option>
+                                            {specialties.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="relative">
+                                        <FileText className="absolute left-4 top-4 text-gray-400" size={18} />
+                                        <textarea
+                                            placeholder="Doctor Biography (Optional)"
+                                            value={staffForm.bio}
+                                            onChange={(e) => setStaffForm({ ...staffForm, bio: e.target.value })}
+                                            className="w-full pl-12 pr-4 py-4 bg-gray-50 rounded-2xl border border-transparent focus:border-medical-primary focus:bg-white outline-none transition-all text-sm font-medium min-h-[100px]"
+                                        />
+                                    </div>
+                                </>
+                            )}
 
                             <button
                                 type="submit"
